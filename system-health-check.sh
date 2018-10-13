@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-
 # system-health-check.sh
+# version: 1.0.0
+# status: in-progress
+# Usage:
+#        ./system-health-check.sh [--mysql-user=user][--mysql-password=password] [--report-path=path]
+# Requirements:
+# - REQ1: TO Support Report Path
+# - REQ2: TO Support Mysql User and Password
+# - REQ3: Add Date Into Report File
+#
 # Server monitoring for Memory, swap, process, storage, and more
 # Copyright (c) 2012, Stephen Lang
 # All rights reserved.
@@ -30,10 +38,51 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+# Default Constants
+# REQ1, REQ2
+MYSQL_USER=
+MYSQL_PASSWORD=
+REPORT_PATH=/var/www/system-health-check.html
+
+# REQ1, REQ2
+while getopts ":--mysql-user:--mysql-password:--report-path" opt;
+do
+	case $opt in
+	# REQ2
+	--mysql-user)
+		MYSQL_USER=$OPTARG
+		;;
+
+	# REQ2
+	--mysql-password)
+		MYSQL_PASSWORD=$OPTARG
+		;;
+
+	# REQ1
+	--report-path)
+        REPORT_PATH=$OPTARG
+		;;
+		
+	esac
+done
 
 # Status page
-status_page=/var/www/system-health-check.html
+# REQ1 
+status_page=VARIABLE=REPORT_PATH
+mysql_executable="/usr/bin/mysql"
 
+# REQ2
+if [[ ! -z MYSQL_USER ]]
+then
+	mysql_executable=$mysql_executable" --user=$MYSQL_USER"
+fi
+if [[ ! -z MYSQL_USER ]]
+then
+	mysql_executable=$mysql_executable" --password=$MYSQL_PASSWORD"
+fi
+
+# REQ3
+echo `date '+%Y-%M-%D %H:%M:%S'` >> $status_page
 
 # Enable / Disable Checks
 memory_check=off
@@ -72,9 +121,11 @@ if [ `uname` = Linux ]; then
 load_alarm=`/usr/bin/uptime | awk -F'load average:' '{ print $2}' | sed 's/\./ /g' | awk '{print $1}'`
 memory_alarm=`/usr/bin/free -m | grep Mem | awk '{print $3/$2 * 100.0}' | cut -d\. -f1`
 swap_alarm=`/usr/bin/free -m | grep Swap | awk '{print $3/$2 * 100.0}' | cut -d\. -f1`
-Slave_IO_Running=`/usr/bin/mysql -Bse "show slave status\G" | grep Slave_IO_Running | awk '{ print $2 }'`
-Slave_SQL_Running=`/usr/bin/mysql -Bse "show slave status\G" | grep Slave_SQL_Running | awk '{ print $2 }'`
-Last_error=`/usr/bin/mysql -Bse "show slave status\G" | grep Last_error | awk -F \: '{ print $2 }'`
+
+# REQ2
+Slave_IO_Running=`$mysql_executable -Bse "show slave status\G" | grep Slave_IO_Running | awk '{ print $2 }'`
+Slave_SQL_Running=`$mysql_executable -Bse "show slave status\G" | grep Slave_SQL_Running | awk '{ print $2 }'`
+Last_error=`$mysql_executable -Bse "show slave status\G" | grep Last_error | awk -F \: '{ print $2 }'`
 http_content_check_alarm=`/usr/bin/curl -sLH "host: $site" localhost | grep "$search_string" |wc -l`
 
 
@@ -93,9 +144,11 @@ memory_active=`/sbin/sysctl -n vm.stats.vm.v_active_count`
 memory_pagesize=`/sbin/sysctl -n hw.pagesize`
 memory_alarm=`echo "($memory_active * $memory_pagesize / 1024) / ($memory_physmem / 1024) * 100" |bc -l |cut -d\. -f1`
 swap_alarm=`/usr/sbin/swapinfo -h | grep -v Device | awk '{print $5}' | sed -e 's/\%//g'`
-Slave_IO_Running=`/usr/local/bin/mysql -Bse "show slave status\G" | grep Slave_IO_Running | awk '{ print $2 }'`
-Slave_SQL_Running=`/usr/local/bin/mysql -Bse "show slave status\G" | grep Slave_SQL_Running | awk '{ print $2 }'`
-Last_error=`/usr/local/bin/mysql -Bse "show slave status\G" | grep Last_error | awk -F \: '{ print $2 }'`
+# REQ2
+Slave_IO_Running=`$mysql_executable -Bse "show slave status\G" | grep Slave_IO_Running | awk '{ print $2 }'`
+Slave_SQL_Running=`$mysql_executable -Bse "show slave status\G" | grep Slave_SQL_Running | awk '{ print $2 }'`
+Last_error=`$mysql_executable -Bse "show slave status\G" | grep Last_error | awk -F \: '{ print $2 }'`
+
 http_content_check_alarm=`/usr/local/bin/curl -sLH "host: $site" localhost | grep "$search_string" |wc -l`
 
 
